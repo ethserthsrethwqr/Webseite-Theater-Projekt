@@ -252,7 +252,7 @@ export default function App() {
       const res = await fetch('/api/admin/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(adminUser),
+        body: JSON.stringify(adminPayload()),
       });
       if (res.ok) setAdminUsers(await res.json());
     } catch (err) { console.error("fetchAdminUsers failed:", err); }
@@ -3053,84 +3053,6 @@ function SettingsTab({ adminUser, generalSettings, groups, adminUsers, fetchGene
             {userForm.userId && <Button variant="ghost" onClick={() => setUserForm({ userId: '', editUsername: '', editPassword: '', editRole: 'group_admin', editGroupId: '' })}>Neu</Button>}
           </div>
         </form>
-      </div>
-
-      {/* Management Ticket */}
-      <div className="max-w-5xl">
-        <div className="glass p-10 rounded-[48px] space-y-8 flex flex-col md:flex-row gap-8 items-center md:items-start justify-between">
-          <div className="flex-1 space-y-4">
-            <div className="flex items-center gap-4">
-              <div className="bg-emerald-500/10 p-3 rounded-2xl">
-                <Check size={24} className="text-emerald-400" />
-              </div>
-              <div>
-                <h3 className="text-2xl font-bold tracking-tight">Management VIP Pass</h3>
-                <p className="text-white/30 text-xs uppercase tracking-widest font-bold">Zutritt ohne Limit</p>
-              </div>
-            </div>
-            <p className="text-sm text-white/50 leading-relaxed max-w-md">
-        Dieser universelle QR-Code gewährt permanenten <strong>"Free Entry / VIP"</strong> Zutritt an der Einlasskontrolle, unabhängig der aktuellen Veranstaltung. Eignet sich ideal für unauffällige Freikarten an Management, Presseleute oder besondere VIP-Gäste.
-            </p>
-            <p className="text-[10px] text-emerald-400/80 tracking-widest font-bold uppercase pt-2">
-              Speichern Sie dieses Ticket als Screenshot oder drucken Sie es sich aus.
-            </p>
-          </div>
-
-          <div className="w-[300px] shrink-0 relative shadow-2xl drop-shadow-2xl">
-            {/* VIP Ticket top (dark) */}
-            <div className="bg-[#1c1c1e] rounded-t-[32px] p-6 border border-amber-500/30 border-b-0 relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-[80px] bg-gradient-to-b from-amber-500/10 to-transparent pointer-events-none" />
-              
-              <div className="flex justify-between items-start mb-6 relative z-10">
-                <div className="font-bold tracking-[0.2em] text-lg">
-                  STAGE<span className="text-amber-500">PASS</span>
-                </div>
-                <div className="text-right">
-                  <span className="block text-[8px] text-amber-500/80 uppercase tracking-[0.25em] font-black mb-1">Status</span>
-                  <span className="bg-amber-500 text-amber-950 text-[10px] font-black px-2 py-1 rounded-md tracking-wider">
-                    VIP ACCESS
-                  </span>
-                </div>
-              </div>
-
-              <h2 className="text-xl font-black leading-tight mb-2 text-white tracking-tight relative z-10">Universal Zutritt</h2>
-              <p className="text-amber-500/80 text-[11px] font-bold mb-6 tracking-wider uppercase relative z-10">
-                Management Ticket
-              </p>
-
-              {/* Data grid */}
-              <div className="grid grid-cols-2 gap-y-4 gap-x-4 border-t border-amber-500/20 pt-6 relative z-10">
-                <div>
-                  <p className="text-[8px] text-zinc-500 uppercase tracking-[0.2em] font-black mb-1">Name</p>
-                  <p className="font-bold text-xs text-zinc-100">Management</p>
-                </div>
-                <div>
-        <p className="text-[8px] text-zinc-500 uppercase tracking-[0.2em] font-black mb-1">Gültigkeit</p>
-                  <p className="font-bold text-xs text-amber-500">Unbegrenzt</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Perforated divider */}
-            <div className="relative h-8 bg-white flex items-center justify-between overflow-hidden">
-              <div className="absolute -left-4 w-8 h-8 bg-[#050505] rounded-full z-20 shadow-[inset_-2px_0_4px_rgba(0,0,0,0.1)]" />
-              <div className="w-full h-full flex items-center px-6 relative z-10">
-                <div className="w-full border-t-[2px] border-dashed border-amber-500/40" />
-              </div>
-              <div className="absolute -right-4 w-8 h-8 bg-[#050505] rounded-full z-20 shadow-[inset_2px_0_4px_rgba(0,0,0,0.1)]" />
-            </div>
-
-            {/* Ticket bottom */}
-            <div className="bg-white rounded-b-[32px] p-6 flex flex-col items-center relative border border-amber-500/10 border-t-0">
-              <div className="mb-4 bg-white rounded-2xl shadow-[0_0_15_rgba(0,0,0,0.05)] border border-amber-100 p-3">
-                <QRCode value="VIP-PASS" size={160} bgColor="#ffffff" fgColor="#09090b" qrStyle="dots" eyeRadius={8} quietZone={8} />
-              </div>
-              <div className="text-center w-full bg-zinc-50 py-3 rounded-2xl border border-zinc-200">
-                <div className="font-mono text-lg font-black text-zinc-900 tracking-[0.3em] ml-1">VIP-PASS</div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Danger Zone - Reset */}

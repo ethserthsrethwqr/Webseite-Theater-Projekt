@@ -73,6 +73,13 @@ ADMIN_PORT=3101
 VITE_HMR_PORT=24780
 
 PUBLIC_DOMAIN=theaterprojektklasse8.store
+
+# Optional initial owner for a fresh database.
+INITIAL_OWNER_USERNAME=owner
+INITIAL_OWNER_PASSWORD=
+
+# Only enable behind a trusted reverse proxy.
+TRUST_PROXY=0
 ```
 
 Important: never commit `.env`. The real GMX credentials must stay local.
@@ -121,6 +128,8 @@ StagePass supports multiple account levels:
 - Scanner: dedicated admission-control role.
 
 Group admins cannot see or modify other groups.
+
+On a fresh database, the server creates one owner account. If `INITIAL_OWNER_PASSWORD` is empty, a one-time password is printed to the server console and should be changed immediately after login.
 
 ## Email Delivery
 

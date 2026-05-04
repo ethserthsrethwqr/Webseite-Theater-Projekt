@@ -283,20 +283,15 @@ if (showCount.count === 0) {
 
 const userCount = db.prepare("SELECT COUNT(*) as count FROM users").get() as { count: number };
 if (userCount.count === 0) {
-  db.prepare("INSERT INTO users (username, password, role) VALUES (?, ?, 'admin')").run("admin", hashSecret("theater2026"));
-}
-
-function ensureGroupUser(username: string, password: string, groupId: number) {
-  const existing = db.prepare("SELECT id FROM users WHERE username = ?").get(username) as { id: number } | undefined;
-  if (existing) {
-    db.prepare("UPDATE users SET role = 'group_admin', group_id = ? WHERE id = ?").run(groupId, existing.id);
-    return;
+  const initialUsername = cleanText(process.env.INITIAL_OWNER_USERNAME || "owner", 80);
+  const generatedPassword = crypto.randomBytes(9).toString("base64url");
+  const initialPassword = process.env.INITIAL_OWNER_PASSWORD || generatedPassword;
+  db.prepare("INSERT INTO users (username, password, role) VALUES (?, ?, 'admin')").run(initialUsername, hashSecret(initialPassword));
+  if (!process.env.INITIAL_OWNER_PASSWORD) {
+    console.warn(`[setup] Initial owner created: ${initialUsername} / ${initialPassword}`);
+    console.warn("[setup] Change this password immediately after first login.");
   }
-  db.prepare("INSERT INTO users (username, password, role, group_id) VALUES (?, ?, 'group_admin', ?)").run(username, hashSecret(password), groupId);
 }
-
-ensureGroupUser("klasse8b", "Buehne-8B-47!", group8BId);
-ensureGroupUser("klasse8c", "Buehne-8C-83!", group8CId);
 
 function migrateStoredSecrets() {
   const users = db.prepare("SELECT id, password FROM users").all() as { id: number; password: string }[];
@@ -755,7 +750,7 @@ const rateLimitStores = new Map<string, { count: number; resetAt: number }>();
 function rateLimit(options: { windowMs: number; max: number; key?: (req: express.Request) => string }) {
   return (req: express.Request, res: express.Response, next: express.NextFunction) => {
     const now = Date.now();
-    const baseKey = options.key?.(req) || req.ip || req.socket.remoteAddress || "unknown";
+    const baseKey = options.key?.(req) || req.socket.remoteAddress || req.ip || "unknown";
     const key = `${req.path}:${baseKey}`;
     const current = rateLimitStores.get(key);
 
@@ -772,6 +767,14 @@ function rateLimit(options: { windowMs: number; max: number; key?: (req: express
 
     next();
   };
+}
+
+function securityHeaders(_req: express.Request, res: express.Response, next: express.NextFunction) {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Permissions-Policy", "geolocation=(), microphone=()");
+  next();
 }
 
 setInterval(() => {
@@ -1138,6 +1141,8 @@ function mountAdminRoutes(app: express.Express, upload: multer.Multer) {
     if (!name || !username) return res.status(400).json({ error: "Name und Benutzername erforderlich." });
     if (!groupId && password.length < 10) return res.status(400).json({ error: "Neues Gruppenpasswort muss mindestens 10 Zeichen haben." });
     const presentation = groupPresentation(null, name);
+    const duplicateGroup = db.prepare("SELECT id FROM groups WHERE name = ? AND id != ?").get(name, groupId || -1) as any;
+    if (duplicateGroup) return res.status(400).json({ error: "Diese Gruppe existiert bereits." });
 
     const savedGroupId = groupId
       ? groupId
@@ -1146,6 +1151,8 @@ function mountAdminRoutes(app: express.Express, upload: multer.Multer) {
     db.prepare("UPDATE shows SET section_key = ?, section_title = ? WHERE group_id = ?").run(presentation.sectionKey, presentation.sectionTitle, savedGroupId);
 
     const existingUser = db.prepare("SELECT id FROM users WHERE group_id = ? AND role = 'group_admin'").get(savedGroupId) as any;
+    const duplicateUser = db.prepare("SELECT id FROM users WHERE username = ? AND id != ?").get(username, existingUser?.id || -1) as any;
+    if (duplicateUser) return res.status(400).json({ error: "Dieser Benutzername ist bereits vergeben." });
     if (existingUser) {
       if (password) db.prepare("UPDATE users SET username = ?, password = ? WHERE id = ?").run(username, hashSecret(password), existingUser.id);
       else db.prepare("UPDATE users SET username = ? WHERE id = ?").run(username, existingUser.id);
@@ -1180,6 +1187,8 @@ function mountAdminRoutes(app: express.Express, upload: multer.Multer) {
     if (!username) return res.status(400).json({ error: "Benutzername erforderlich." });
     if (role === "group_admin" && !groupId) return res.status(400).json({ error: "Gruppen-User brauchen eine Gruppe." });
     if (!userId && password.length < 10) return res.status(400).json({ error: "Neues Passwort muss mindestens 10 Zeichen haben." });
+    const duplicateUser = db.prepare("SELECT id FROM users WHERE username = ? AND id != ?").get(username, userId || -1) as any;
+    if (duplicateUser) return res.status(400).json({ error: "Dieser Benutzername ist bereits vergeben." });
     if (userId) {
       if (password) db.prepare("UPDATE users SET username = ?, password = ?, role = ?, group_id = ? WHERE id = ?").run(username, hashSecret(password), role, groupId, userId);
       else db.prepare("UPDATE users SET username = ?, role = ?, group_id = ? WHERE id = ?").run(username, role, groupId, userId);
@@ -1367,24 +1376,6 @@ function mountAdminRoutes(app: express.Express, upload: multer.Multer) {
           show_time: vip.show_time || "VIP",
           ticket_type: "VIP",
           show_price: 0,
-        }
-      });
-    }
-
-    // Universal Management Ticket Check
-    const universalCodes = ["STAGEPASS-VIP", "MANAGEMENT-UNIVERSAL", "VIP-PASS", "VIP-ASS"];
-    if (universalCodes.includes(code)) {
-      return res.json({
-        status: "success",
-        ticket: {
-          id: "VIP",
-          code,
-          customer_name: "MANAGEMENT (Universal Access)",
-          show_title: "ALL ACCESS / FREE ENTRY",
-          show_date: new Date().toISOString(),
-          show_time: "ANY",
-          ticket_type: "VIP",
-          show_price: 0
         }
       });
     }
@@ -1699,7 +1690,8 @@ async function startServers() {
 
   // Public server
   const publicApp = express();
-  publicApp.set("trust proxy", 1);
+  publicApp.set("trust proxy", process.env.TRUST_PROXY === "1");
+  publicApp.use(securityHeaders);
   publicApp.use(express.json({ limit: "64kb" }));
   publicApp.get("/api/mode", (_req, res) => res.json({ admin: false }));
   setupUploads(publicApp, uploadsDir);
@@ -1714,7 +1706,8 @@ async function startServers() {
 
   // Admin server
   const adminApp = express();
-  adminApp.set("trust proxy", 1);
+  adminApp.set("trust proxy", process.env.TRUST_PROXY === "1");
+  adminApp.use(securityHeaders);
   adminApp.use(express.json({ limit: "64kb" }));
   adminApp.get("/api/mode", (_req, res) => res.json({ admin: true }));
   const upload = setupUploads(adminApp, uploadsDir);
