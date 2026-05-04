@@ -1,0 +1,14 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+tickets.db
+tickets.db-*
+uploads/
+public/uploads/
+*.sqlite
+*.sqlite3
