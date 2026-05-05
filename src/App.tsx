@@ -916,7 +916,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden selection:bg-white selection:text-black">
+    <div className="min-h-screen relative overflow-x-hidden selection:bg-white selection:text-black">
       {/* Background Atmosphere */}
       <div className="fixed inset-0 z-0">
         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-white/[0.015] blur-[150px] rounded-full" />
@@ -1401,11 +1401,11 @@ export default function App() {
               key="admin-login"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="max-w-sm mx-auto pt-24"
+              className="max-w-sm mx-auto pt-4 sm:pt-24 pb-16"
             >
-              <div className="glass p-12 rounded-[48px] space-y-10">
+              <div className="glass p-6 sm:p-12 rounded-3xl sm:rounded-[48px] space-y-8 sm:space-y-10">
                 <div className="text-center space-y-3">
-                  <h2 className="text-4xl font-bold tracking-tight">Management</h2>
+                  <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">Management</h2>
                   <p className="text-white/30 text-sm font-light">Anmeldung für Kontrolleure</p>
                 </div>
                 <form onSubmit={handleAdminLogin} className="space-y-6">
