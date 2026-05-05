@@ -59,6 +59,7 @@ const isInitialAdminMode = () => (
 );
 const adminSessionKey = 'stagepass-admin-session-v1';
 const adminSessionMaxAgeMs = 2 * 60 * 60 * 1000;
+const scannerStartedKey = 'stagepass-scanner-started-v1';
 
 const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false, type = 'button' }: any) => {
   const variants: any = {
@@ -2528,10 +2529,13 @@ export default function App() {
 function Scanner({ onScan }: { onScan: (text: string) => void }) {
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
-  const [started, setStarted] = useState(false);
+  const [started, setStarted] = useState(() => {
+    try { return window.sessionStorage.getItem(scannerStartedKey) === '1'; } catch { return false; }
+  });
   const onScanRef = React.useRef(onScan);
   onScanRef.current = onScan;
   const instanceRef = React.useRef<{ qr: Html5Qrcode; running: boolean } | null>(null);
+  const autoStartRef = React.useRef(started);
 
   const stopCurrent = async () => {
     const inst = instanceRef.current;
@@ -2543,6 +2547,7 @@ function Scanner({ onScan }: { onScan: (text: string) => void }) {
 
   const startScanner = React.useCallback(async () => {
     setStarted(true);
+    try { window.sessionStorage.setItem(scannerStartedKey, '1'); } catch {}
     setError(null);
     setReady(false);
     await stopCurrent();
@@ -2613,7 +2618,14 @@ function Scanner({ onScan }: { onScan: (text: string) => void }) {
     setError('Kamera konnte nicht gestartet werden. Bitte schließe andere Kamera-Apps, prüfe die Browser-Berechtigung und tippe hier erneut.');
   }, []);
 
-  useEffect(() => () => { stopCurrent(); }, []);
+  useEffect(() => {
+    if (!autoStartRef.current) return () => { stopCurrent(); };
+    const timer = setTimeout(() => startScanner(), 150);
+    return () => {
+      clearTimeout(timer);
+      stopCurrent();
+    };
+  }, [startScanner]);
 
   return (
     <div className="p-4">
@@ -2645,6 +2657,14 @@ function Scanner({ onScan }: { onScan: (text: string) => void }) {
           </div>
         )}
         <div id="reader" />
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+          <div className="relative w-[64%] h-[64%]">
+            <div className="absolute left-0 top-0 w-12 h-12 border-l-[7px] border-t-[7px] border-white" />
+            <div className="absolute right-0 top-0 w-12 h-12 border-r-[7px] border-t-[7px] border-white" />
+            <div className="absolute left-0 bottom-0 w-12 h-12 border-l-[7px] border-b-[7px] border-white" />
+            <div className="absolute right-0 bottom-0 w-12 h-12 border-r-[7px] border-b-[7px] border-white" />
+          </div>
+        </div>
       </div>
 
       <style>{`
