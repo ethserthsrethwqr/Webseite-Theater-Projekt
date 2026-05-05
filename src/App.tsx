@@ -2528,6 +2528,7 @@ export default function App() {
 function Scanner({ onScan }: { onScan: (text: string) => void }) {
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [started, setStarted] = useState(false);
   const onScanRef = React.useRef(onScan);
   onScanRef.current = onScan;
   const instanceRef = React.useRef<{ qr: Html5Qrcode; running: boolean } | null>(null);
@@ -2541,6 +2542,7 @@ function Scanner({ onScan }: { onScan: (text: string) => void }) {
   };
 
   const startScanner = React.useCallback(async () => {
+    setStarted(true);
     setError(null);
     setReady(false);
     await stopCurrent();
@@ -2611,16 +2613,18 @@ function Scanner({ onScan }: { onScan: (text: string) => void }) {
     setError('Kamera konnte nicht gestartet werden. Bitte schließe andere Kamera-Apps, prüfe die Browser-Berechtigung und tippe hier erneut.');
   }, []);
 
-  useEffect(() => {
-    const timer = setTimeout(() => startScanner(), 400);
-    return () => {
-      clearTimeout(timer);
-      stopCurrent();
-    };
-  }, [startScanner]);
+  useEffect(() => () => { stopCurrent(); }, []);
 
   return (
     <div className="p-4">
+      {!started && (
+        <button
+          onClick={startScanner}
+          className="mb-4 w-full rounded-2xl bg-white text-black p-5 text-center font-semibold active:scale-[0.98] transition-transform"
+        >
+          Kamera starten
+        </button>
+      )}
       {error && (
         <button
           onClick={startScanner}
@@ -2635,7 +2639,7 @@ function Scanner({ onScan }: { onScan: (text: string) => void }) {
 
       <div className="relative rounded-3xl overflow-hidden bg-black aspect-square">
         {/* Spinner overlay - only shown while camera is starting */}
-        {!ready && !error && (
+        {started && !ready && !error && (
           <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/80 z-10 rounded-3xl">
             <div className="w-9 h-9 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
           </div>
@@ -2645,7 +2649,6 @@ function Scanner({ onScan }: { onScan: (text: string) => void }) {
 
       <style>{`
         #reader,
-        #reader > div,
         #reader__scan_region {
           position: absolute !important;
           inset: 0 !important;
@@ -2654,6 +2657,9 @@ function Scanner({ onScan }: { onScan: (text: string) => void }) {
           border: none !important;
           background: #000 !important;
           overflow: hidden !important;
+        }
+        #reader__scan_region {
+          z-index: 1 !important;
         }
         #reader__scan_region img,
         #reader__dashboard_section,
@@ -2666,6 +2672,8 @@ function Scanner({ onScan }: { onScan: (text: string) => void }) {
           height: 100% !important;
           object-fit: cover !important;
           border-radius: 1.5rem;
+          position: relative !important;
+          z-index: 2 !important;
         }
       `}</style>
     </div>
