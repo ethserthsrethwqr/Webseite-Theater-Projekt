@@ -1404,8 +1404,7 @@ export default function App() {
               key="admin-login"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="w-full mx-auto pt-4 sm:pt-24 pb-16"
-              style={{ maxWidth: 'min(22rem, calc(100vw - 2.5rem))' }}
+              className="w-full max-w-[18.5rem] sm:max-w-sm mx-auto pt-4 sm:pt-24 pb-16"
             >
               <div className="glass w-full p-6 sm:p-12 rounded-3xl sm:rounded-[48px] space-y-8 sm:space-y-10">
                 <div className="text-center space-y-3">
