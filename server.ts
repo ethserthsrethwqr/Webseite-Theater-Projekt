@@ -470,8 +470,11 @@ async function sendTicketEmail(tickets: any[]) {
 
   const totalPrice = tickets.reduce((sum: number, t: any) => sum + (t.show_price || 0), 0).toFixed(2).replace(".", ",");
 
-  const publicDomain = process.env.PUBLIC_DOMAIN || "theaterprojektklasse8.store";
-  const stornoUrl = `https://${publicDomain}/stornieren`;
+  const publicBaseUrlRaw = process.env.PUBLIC_BASE_URL || process.env.PUBLIC_DOMAIN || "https://theaterprojektklasse8.store";
+  const publicBaseUrl = /^https?:\/\//i.test(publicBaseUrlRaw)
+    ? publicBaseUrlRaw.replace(/\/+$/, "")
+    : `https://${publicBaseUrlRaw.replace(/\/+$/, "")}`;
+  const stornoUrl = `${publicBaseUrl}/stornieren`;
 
   const html = `<!DOCTYPE html>
 <html lang="de">

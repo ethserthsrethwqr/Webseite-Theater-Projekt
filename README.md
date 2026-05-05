@@ -72,6 +72,7 @@ PUBLIC_PORT=3100
 ADMIN_PORT=3101
 VITE_HMR_PORT=24780
 
+PUBLIC_BASE_URL=https://theaterprojektklasse8.store
 PUBLIC_DOMAIN=theaterprojektklasse8.store
 
 # Optional initial owner for a fresh database.
@@ -82,7 +83,7 @@ INITIAL_OWNER_PASSWORD=
 TRUST_PROXY=0
 ```
 
-Important: never commit `.env`. The real GMX credentials must stay local.
+Important: never commit `.env`. The real GMX credentials must stay local. `PUBLIC_BASE_URL` is used for cancellation links in ticket emails; for a LAN test server it can be set to an IP URL such as `http://192.168.178.22`.
 
 ## Installation
 
