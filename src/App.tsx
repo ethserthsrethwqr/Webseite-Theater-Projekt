@@ -53,6 +53,9 @@ import {
 
 const formatPrice = (value: number | null | undefined) => `${Number(value ?? 0).toFixed(2)} \u20ac`;
 const backText = '\u2190 Zurück';
+const isInitialAdminMode = () => (
+  typeof window !== 'undefined' && ['3101', '8080'].includes(window.location.port)
+);
 
 const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false, type = 'button' }: any) => {
   const variants: any = {
@@ -97,7 +100,7 @@ const TextArea = ({ label, ...props }: any) => (
 // --- Main App ---
 
 export default function App() {
-  const [view, setView] = useState<'home' | 'booking' | 'ticket' | 'admin-login' | 'admin-dash' | 'cancel'>('home');
+  const [view, setView] = useState<'home' | 'booking' | 'ticket' | 'admin-login' | 'admin-dash' | 'cancel'>(() => isInitialAdminMode() ? 'admin-login' : 'home');
   const [adminTab, setAdminTab] = useState<'accounts' | 'scanner' | 'stats' | 'tickets' | 'editor' | 'email' | 'settings'>('scanner');
   const [adminRole, setAdminRole] = useState<'admin' | 'group_admin' | 'scanner' | null>(null);
   const [adminGroupId, setAdminGroupId] = useState<number | null>(null);
@@ -123,7 +126,7 @@ export default function App() {
   const [adultNames, setAdultNames] = useState<string[]>([]);
   const [childNames, setChildNames] = useState<string[]>([]);
   const [bookingEmail, setBookingEmail] = useState('');
-  const [isAdminMode, setIsAdminMode] = useState(false);
+  const [isAdminMode, setIsAdminMode] = useState(() => isInitialAdminMode());
   // Storno state
   const [cancelStep, setCancelStep] = useState<1 | 2 | 3>(1);
   const [cancelCode, setCancelCode] = useState('');
