@@ -2556,25 +2556,39 @@ function Scanner({ onScan }: { onScan: (text: string) => void }) {
     const isMobile = window.innerWidth < 640;
     const qrSize = isMobile ? 220 : 260;
     const config = {
-      fps: 15,
+      fps: 10,
       qrbox: { width: qrSize, height: qrSize },
       rememberLastUsedCamera: true,
-      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
     } as any;
-
-    const constraints: any[] = [
-      { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
-      { facingMode: 'environment' },
-      true,
-    ];
 
     const qr = new Html5Qrcode('reader');
     instanceRef.current = { qr, running: false };
 
-    for (const constraint of constraints) {
+    const startAttempts: any[] = [];
+    try {
+      const cameras = await Html5Qrcode.getCameras();
+      const backCamera = cameras.find((camera) => /back|rear|environment|rück|hinten/i.test(camera.label))
+        || cameras[cameras.length - 1];
+      if (backCamera?.id) startAttempts.push(backCamera.id);
+      cameras
+        .filter((camera) => camera.id && camera.id !== backCamera?.id)
+        .slice(0, 2)
+        .forEach((camera) => startAttempts.push(camera.id));
+    } catch (err: any) {
+      const msg = (err?.name || err?.message || String(err)).toLowerCase();
+      if (msg.includes('notallowed') || msg.includes('permission') || msg.includes('denied')) {
+        setError('Kamera-Zugriff verweigert. Bitte in den Browser-Einstellungen erlauben und dann hier tippen.');
+        return;
+      }
+      console.warn('Camera list failed, trying constraints:', err);
+    }
+
+    startAttempts.push({ facingMode: 'environment' }, { facingMode: 'user' }, true);
+
+    for (const cameraOrConstraint of startAttempts) {
       try {
         await qr.start(
-          constraint,
+          cameraOrConstraint,
           config,
           (text) => { onScanRef.current(text); },
           () => {}
@@ -2590,11 +2604,11 @@ function Scanner({ onScan }: { onScan: (text: string) => void }) {
           setError('Kamera-Zugriff verweigert. Bitte in den Browser-Einstellungen erlauben und dann hier tippen.');
           return;
         }
-        console.warn('Camera constraint failed, trying next:', constraint, err);
+        console.warn('Camera start failed, trying next:', cameraOrConstraint, err);
       }
     }
 
-    setError('Kamera konnte nicht gestartet werden. Bitte hier tippen, um es erneut zu versuchen.');
+    setError('Kamera konnte nicht gestartet werden. Bitte schließe andere Kamera-Apps, prüfe die Browser-Berechtigung und tippe hier erneut.');
   }, []);
 
   useEffect(() => {
