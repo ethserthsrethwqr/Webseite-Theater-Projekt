@@ -54,7 +54,8 @@ import {
 const formatPrice = (value: number | null | undefined) => `${Number(value ?? 0).toFixed(2)} \u20ac`;
 const backText = '\u2190 Zurück';
 const isInitialAdminMode = () => (
-  typeof window !== 'undefined' && ['3101', '8080'].includes(window.location.port)
+  typeof window !== 'undefined'
+  && (['3101', '8080'].includes(window.location.port) || window.location.hostname.startsWith('admin.'))
 );
 
 const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false, type = 'button' }: any) => {
@@ -409,7 +410,7 @@ export default function App() {
         } else if (data.role === 'scanner') {
           setAdminTab('scanner');
         } else {
-          setAdminTab('stats');
+          setAdminTab('scanner');
         }
         setView('admin-dash');
       } else {
@@ -921,7 +922,7 @@ export default function App() {
   return (
     <div className="min-h-screen relative overflow-x-hidden selection:bg-white selection:text-black">
       {/* Background Atmosphere */}
-      <div className="fixed inset-0 z-0">
+      <div className="fixed inset-0 z-0 pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-white/[0.015] blur-[150px] rounded-full" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-white/[0.015] blur-[150px] rounded-full" />
       </div>
@@ -940,7 +941,7 @@ export default function App() {
         <div className="flex gap-6 items-center w-full sm:w-auto">
           {view === 'admin-dash' ? (
             <div className="flex items-center gap-2 sm:gap-4 bg-white/5 p-1 rounded-full border border-white/10 overflow-x-auto w-full sm:w-auto">
-              {([...(adminRole === 'admin' ? ['accounts'] : []), ...(adminRole === 'scanner' ? ['scanner'] : []), ...((adminRole === 'admin' || adminRole === 'group_admin') ? ['stats', 'tickets', 'editor'] : []), ...(adminRole === 'admin' ? ['email', 'settings'] : [])] as const).map(tab => (
+              {([...(adminRole === 'admin' ? ['accounts'] : []), ...((adminRole === 'admin' || adminRole === 'group_admin' || adminRole === 'scanner') ? ['scanner'] : []), ...((adminRole === 'admin' || adminRole === 'group_admin') ? ['stats', 'tickets', 'editor'] : []), ...(adminRole === 'admin' ? ['email', 'settings'] : [])] as const).map(tab => (
                 <button
                   key={tab}
                   onClick={() => { if (tab === 'accounts') setOwnerGroupId(null); setAdminTab(tab as any); }}
@@ -2523,6 +2524,11 @@ function Scanner({ onScan }: { onScan: (text: string) => void }) {
     setError(null);
     setReady(false);
     await stopCurrent();
+
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      setError('Kamera braucht auf dem iPhone eine sichere Verbindung (HTTPS). Über http://192.168... blockiert iOS die Kamera. Nutze vorerst die manuelle Code-Eingabe oder öffne die Seite später über HTTPS.');
+      return;
+    }
 
     const el = document.getElementById('reader');
     if (el) el.innerHTML = '';
