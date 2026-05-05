@@ -57,6 +57,8 @@ const isInitialAdminMode = () => (
   typeof window !== 'undefined'
   && (['3101', '8080'].includes(window.location.port) || window.location.hostname.startsWith('admin.'))
 );
+const adminSessionKey = 'stagepass-admin-session-v1';
+const adminSessionMaxAgeMs = 2 * 60 * 60 * 1000;
 
 const Button = ({ children, onClick, variant = 'primary', className = '', disabled = false, type = 'button' }: any) => {
   const variants: any = {
@@ -164,7 +166,49 @@ export default function App() {
     d.setMinutes(d.getMinutes() - offset);
     return d.toTimeString().slice(0, 5);
   };
+
+  const clearAdminSession = () => {
+    try { window.sessionStorage.removeItem(adminSessionKey); } catch {}
+  };
+
+  const saveAdminSession = (data: any, credentials = adminUser, tab = adminTab) => {
+    try {
+      window.sessionStorage.setItem(adminSessionKey, JSON.stringify({
+        username: credentials.username,
+        password: credentials.password,
+        role: data.role,
+        groupId: data.groupId || null,
+        tab,
+        savedAt: Date.now(),
+      }));
+    } catch {}
+  };
+
   useEffect(() => {
+    if (!isAdminMode || !adminRole || !adminUser.username || !adminUser.password) return;
+    saveAdminSession({ role: adminRole, groupId: adminGroupId }, adminUser, adminTab);
+  }, [isAdminMode, adminRole, adminGroupId, adminTab, adminUser.username, adminUser.password]);
+
+  useEffect(() => {
+    let restoredAdminSession = false;
+    if (isInitialAdminMode()) {
+      try {
+        const raw = window.sessionStorage.getItem(adminSessionKey);
+        const saved = raw ? JSON.parse(raw) : null;
+        if (saved?.username && saved?.password && Date.now() - Number(saved.savedAt || 0) < adminSessionMaxAgeMs) {
+          restoredAdminSession = true;
+          setIsAdminMode(true);
+          setAdminUser({ username: saved.username, password: saved.password });
+          setAdminRole(saved.role);
+          setAdminGroupId(saved.groupId || null);
+          setAdminTab(saved.tab || (saved.role === 'admin' ? 'accounts' : 'scanner'));
+          setView('admin-dash');
+        }
+      } catch {
+        clearAdminSession();
+      }
+    }
+
     // Check URL path for /stornieren deep link with optional ?code=XXXX pre-fill
     const path = window.location.pathname.toLowerCase();
     if (path === '/stornieren' || path === '/stornieren/') {
@@ -180,7 +224,7 @@ export default function App() {
     fetch('/api/mode')
       .then(r => r.json())
       .then(data => {
-        if (data.admin) {
+        if (data.admin && !restoredAdminSession) {
           setIsAdminMode(true);
           setView('admin-login');
         }
@@ -403,15 +447,18 @@ export default function App() {
         setAdminRole(data.role);
         setAdminGroupId(data.groupId || null);
         setOwnerGroupId(null);
+        let nextTab: typeof adminTab = 'scanner';
         if (data.role === 'admin') {
-          setAdminTab('accounts');
+          nextTab = 'accounts';
           fetchGroups();
           fetchAdminUsers();
         } else if (data.role === 'scanner') {
-          setAdminTab('scanner');
+          nextTab = 'scanner';
         } else {
-          setAdminTab('scanner');
+          nextTab = 'scanner';
         }
+        setAdminTab(nextTab);
+        saveAdminSession(data, adminUser, nextTab);
         setView('admin-dash');
       } else {
         alert('Ungültige Anmeldedaten');
@@ -953,6 +1000,7 @@ export default function App() {
               <div className="w-px h-4 bg-white/10 mx-1 sm:mx-2 shrink-0" />
               <button
                 onClick={() => {
+                  clearAdminSession();
                   setAdminUser({ username: '', password: '' });
                   setAdminRole(null);
                   setAdminGroupId(null);
@@ -1802,9 +1850,9 @@ export default function App() {
                     {!scanResult && (
                       <div className="glass p-4 sm:p-6 rounded-[16px] sm:rounded-[32px] space-y-4">
                         <div className="text-xs uppercase tracking-widest text-white/40 font-bold">Manuelle Eingabe</div>
-                        <div className="flex gap-3">
+                        <div className="flex flex-col sm:flex-row gap-3">
                           <input
-                            className="flex-1 bg-white/5 border border-white/10 rounded-2xl px-4 sm:px-6 py-3 sm:py-4 font-mono text-xl sm:text-2xl tracking-[0.5em] uppercase focus:outline-none focus:border-white/30"
+                            className="w-full sm:flex-1 bg-white/5 border border-white/10 rounded-2xl px-4 sm:px-6 py-3 sm:py-4 font-mono text-xl sm:text-2xl tracking-[0.35em] sm:tracking-[0.5em] uppercase focus:outline-none focus:border-white/30"
                             placeholder="CODE"
                             maxLength={4}
                             value={manualCode}
@@ -1812,7 +1860,7 @@ export default function App() {
                             onKeyDown={(e) => { if (e.key === 'Enter' && manualCode.length === 4) handleScan(manualCode); }}
                           />
                           <Button
-                            className="px-6 sm:px-8"
+                            className="w-full sm:w-auto px-6 sm:px-8"
                             onClick={() => handleScan(manualCode)}
                             disabled={manualCode.length !== 4}
                           >
@@ -2483,9 +2531,6 @@ function Scanner({ onScan }: { onScan: (text: string) => void }) {
   const onScanRef = React.useRef(onScan);
   onScanRef.current = onScan;
   const instanceRef = React.useRef<{ qr: Html5Qrcode; running: boolean } | null>(null);
-  const restartCountRef = React.useRef(0);
-  // Stable ref so fixOrientation can call startScanner without circular deps
-  const startScannerRef = React.useRef<() => Promise<void>>();
 
   const stopCurrent = async () => {
     const inst = instanceRef.current;
@@ -2494,31 +2539,6 @@ function Scanner({ onScan }: { onScan: (text: string) => void }) {
       try { await inst.qr.stop(); } catch {}
     }
   };
-
-  // Called every 2 s while the scanner is running.
-  // Uses applyConstraints (no flicker!) and only restarts as last resort.
-  const fixOrientation = React.useCallback(async () => {
-    const video = document.querySelector('#reader video') as HTMLVideoElement | null;
-    if (!video || video.videoWidth === 0) return;
-    const portrait = window.innerHeight > window.innerWidth;
-    const landscape = video.videoWidth > video.videoHeight * 1.15;
-    if (!portrait || !landscape) return; // stream is fine
-
-    // Option 1: applyConstraints - zero flicker, changes stream in-place
-    try {
-      const track = (video.srcObject as MediaStream | null)?.getVideoTracks()[0];
-      if (track) {
-        await track.applyConstraints({ aspectRatio: 1 });
-        return; // next poll cycle verifies if it actually worked
-      }
-    } catch (_) { /* applyConstraints not supported, fall through */ }
-
-    // Option 2: silent restart (brief flicker, max 3x)
-    if (restartCountRef.current < 3) {
-      restartCountRef.current++;
-      startScannerRef.current?.();
-    }
-  }, []);
 
   const startScanner = React.useCallback(async () => {
     setError(null);
@@ -2534,12 +2554,17 @@ function Scanner({ onScan }: { onScan: (text: string) => void }) {
     if (el) el.innerHTML = '';
 
     const isMobile = window.innerWidth < 640;
-    const qrSize = isMobile ? 200 : 260;
-    const config = { fps: 25, qrbox: { width: qrSize, height: qrSize }, aspectRatio: 1 } as any;
+    const qrSize = isMobile ? 220 : 260;
+    const config = {
+      fps: 15,
+      qrbox: { width: qrSize, height: qrSize },
+      rememberLastUsedCamera: true,
+      experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+    } as any;
 
     const constraints: any[] = [
+      { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
       { facingMode: 'environment' },
-      { facingMode: 'user' },
       true,
     ];
 
@@ -2556,7 +2581,6 @@ function Scanner({ onScan }: { onScan: (text: string) => void }) {
         );
         if (instanceRef.current) {
           instanceRef.current.running = true;
-          restartCountRef.current = 0;
           setReady(true);
         }
         return;
@@ -2572,17 +2596,6 @@ function Scanner({ onScan }: { onScan: (text: string) => void }) {
 
     setError('Kamera konnte nicht gestartet werden. Bitte hier tippen, um es erneut zu versuchen.');
   }, []);
-
-  // Keep ref in sync so fixOrientation can call startScanner without circular deps
-  startScannerRef.current = startScanner;
-
-  // Poll every 2 s: silently correct landscape stream without restarting
-  useEffect(() => {
-    if (!ready) return;
-    const init = setTimeout(() => fixOrientation(), 800);
-    const poll = setInterval(() => fixOrientation(), 2000);
-    return () => { clearTimeout(init); clearInterval(poll); };
-  }, [ready, fixOrientation]);
 
   useEffect(() => {
     const timer = setTimeout(() => startScanner(), 400);
@@ -2606,29 +2619,37 @@ function Scanner({ onScan }: { onScan: (text: string) => void }) {
         </button>
       )}
 
-      {/*
-        Wrapper gives the spinner a fixed height while loading.
-        The reader lives inside and is always visible so html5-qrcode
-        can measure its width correctly on every device.
-        The spinner is an absolute overlay that disappears once the camera runs.
-      */}
-      <div className="relative rounded-3xl overflow-hidden" style={{ minHeight: ready ? 0 : 300 }}>
+      <div className="relative rounded-3xl overflow-hidden bg-black aspect-square">
         {/* Spinner overlay - only shown while camera is starting */}
         {!ready && !error && (
           <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/80 z-10 rounded-3xl">
             <div className="w-9 h-9 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
           </div>
         )}
-        {/* reader is always rendered and visible - never hidden */}
-        <div id="reader" style={{ width: '100%' }} />
+        <div id="reader" />
       </div>
 
       <style>{`
-        #reader { border: none !important; background: transparent !important; }
+        #reader,
+        #reader > div,
+        #reader__scan_region {
+          position: absolute !important;
+          inset: 0 !important;
+          width: 100% !important;
+          height: 100% !important;
+          border: none !important;
+          background: #000 !important;
+          overflow: hidden !important;
+        }
+        #reader__scan_region img,
+        #reader__dashboard_section,
+        #reader__header_message {
+          display: none !important;
+        }
         #reader video {
           display: block !important;
           width: 100% !important;
-          height: auto !important;
+          height: 100% !important;
           object-fit: cover !important;
           border-radius: 1.5rem;
         }
